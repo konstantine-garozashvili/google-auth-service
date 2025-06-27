@@ -5,7 +5,7 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 // Google Auth Service v2.1 - Deployment: 2025-06-27-21:30 - WITH BYPASS LOGIC
-console.log('🚀 Google Auth Service v2.1 starting with Google Auth Bypass Logic for existing users...');
+console.log('🚀 Google Auth Service v2.4 starting with Enhanced Debug Logging and Alternative Password Patterns...');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
