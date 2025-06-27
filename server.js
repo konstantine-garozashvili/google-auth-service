@@ -35,6 +35,13 @@ app.get('/auth/google/url', (req, res) => {
   try {
     console.log('🔵 Generating Google auth URL...');
     
+    // Clear any existing auth data when starting new authentication
+    // This helps prevent conflicts when switching between Google accounts
+    if (global.latestAuthData) {
+      console.log('🧹 Clearing previous auth data before new authentication');
+      global.latestAuthData = null;
+    }
+    
     // Generate and store state for CSRF protection
     const state = generateState();
     stateStore.set(state, { timestamp: Date.now() });
@@ -54,19 +61,21 @@ app.get('/auth/google/url', (req, res) => {
     
     console.log('🔵 Using redirect URI:', redirectUri);
     
-    // Build Google OAuth URL
+    // Build Google OAuth URL with additional parameters to force account selection
     const params = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
       scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       response_type: 'code',
       access_type: 'offline',
-      state: state
+      state: state,
+      prompt: 'select_account', // Force Google to show account selection
+      include_granted_scopes: 'true'
     });
     
     const authUrl = `https://accounts.google.com/o/oauth2/auth?${params.toString()}`;
     
-    console.log('✅ Google auth URL generated successfully');
+    console.log('✅ Google auth URL generated successfully with account selection');
     res.json({
       auth_url: authUrl,
       state: state
@@ -563,7 +572,7 @@ app.get('/auth/check-session', async (req, res) => {
 });
 
 // ============================================
-// Clear Session Endpoint (for logout)
+// Clear Session Endpoint (for logout and account switching)
 // ============================================
 app.post('/auth/clear-session', (req, res) => {
   try {
@@ -591,6 +600,41 @@ app.post('/auth/clear-session', (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to clear session',
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// Clear Session Before New Auth (GET endpoint for convenience)
+// ============================================
+app.get('/auth/clear-session', (req, res) => {
+  try {
+    console.log('🧹 Pre-clearing authentication session for new auth...');
+    
+    // Clear global auth data
+    if (global.latestAuthData) {
+      global.latestAuthData = null;
+      console.log('✅ Previous auth data cleared for new authentication');
+    }
+    
+    // Clear old stored states
+    const statesCleared = stateStore.size;
+    stateStore.clear();
+    console.log(`✅ Cleared ${statesCleared} old stored states`);
+    
+    res.json({
+      success: true,
+      message: 'Previous authentication session cleared - ready for new authentication',
+      cleared_states: statesCleared,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error pre-clearing session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clear previous session',
       message: error.message
     });
   }
