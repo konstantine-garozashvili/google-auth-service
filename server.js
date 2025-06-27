@@ -607,13 +607,190 @@ app.get('/auth/check-session', async (req, res) => {
       console.log('✅ Found auth session data for mobile app');
       const authData = global.latestAuthData;
       
-      // Clear it after getting (single use)
-      global.latestAuthData = null;
-      
-      console.log('🎉 Returning Google bypass authentication data to mobile app');
-      
-      // Return the bypass authentication data directly
-      res.json(authData);
+      // Check if this is raw OAuth data (code + state) or processed user data
+      if (authData.code && authData.state && !authData.user) {
+        console.log('🔄 Found raw OAuth data - processing with ticketing API...');
+        
+        // Clear the raw data to prevent reuse
+        global.latestAuthData = null;
+        
+        try {
+          // Process the OAuth code with Google to get user info
+          const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            code: authData.code,
+            grant_type: 'authorization_code',
+            redirect_uri: process.env.NODE_ENV === 'development' 
+              ? process.env.DEVELOPMENT_REDIRECT_URI 
+              : process.env.PRODUCTION_REDIRECT_URI
+          });
+
+          const { access_token } = tokenResponse.data;
+
+          // Get user info from Google
+          const userResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${access_token}` }
+          });
+
+          const googleUser = userResponse.data;
+          console.log('✅ Google user info retrieved:', googleUser.email);
+
+          // Process with ticketing API (hybrid approach)
+          const userData = {
+            name: googleUser.name,
+            email: googleUser.email,
+            username: googleUser.email.split('@')[0],
+            password: `GoogleAuth_${googleUser.id}_${googleUser.email.split('@')[0]}`
+          };
+
+          console.log('🔄 Attempting to register Google user with ticketing API...');
+
+          try {
+            // Try to register the user
+            const registrationResponse = await axios.post(
+              `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`,
+              userData,
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                }
+              }
+            );
+
+            console.log('✅ Google user registered successfully!');
+
+            // Return the processed authentication data
+            const processedAuthData = {
+              success: true,
+              user: {
+                id: registrationResponse.data.user?.id,
+                email: googleUser.email,
+                name: googleUser.name,
+                username: userData.username,
+                picture: googleUser.picture,
+                verified_email: googleUser.verified_email,
+                google_id: googleUser.id,
+                provider: 'google',
+                admin: registrationResponse.data.user?.admin,
+                admin_level: registrationResponse.data.user?.admin_level,
+                company: registrationResponse.data.user?.company
+              },
+              access_token: registrationResponse.data.access_token,
+              refresh_token: registrationResponse.data.refresh_token,
+              message: 'Google user registered with ticketing API',
+              google_ticketing_mode: true,
+              timestamp: Date.now()
+            };
+
+            console.log('🎉 Returning processed Google authentication data to mobile app');
+            res.json(processedAuthData);
+
+          } catch (registrationError) {
+            if (registrationError.response?.status === 409) {
+              // User already exists, try to login
+              console.log('👤 User already exists - attempting login with stored password...');
+
+              try {
+                const loginResponse = await axios.post(
+                  `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
+                  {
+                    email: userData.email,
+                    password: userData.password
+                  },
+                  {
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json'
+                    }
+                  }
+                );
+
+                console.log('✅ Existing Google user authenticated successfully!');
+
+                // Return the processed authentication data
+                const processedAuthData = {
+                  success: true,
+                  user: {
+                    id: loginResponse.data.user?.id,
+                    email: googleUser.email,
+                    name: googleUser.name,
+                    username: userData.username,
+                    picture: googleUser.picture,
+                    verified_email: googleUser.verified_email,
+                    google_id: googleUser.id,
+                    provider: 'google',
+                    admin: loginResponse.data.user?.admin,
+                    admin_level: loginResponse.data.user?.admin_level,
+                    company: loginResponse.data.user?.company
+                  },
+                  access_token: loginResponse.data.access_token,
+                  refresh_token: loginResponse.data.refresh_token,
+                  message: 'Existing Google user authenticated with stored credentials',
+                  google_ticketing_mode: true,
+                  timestamp: Date.now()
+                };
+
+                console.log('🎉 Returning existing user authentication data to mobile app');
+                res.json(processedAuthData);
+
+              } catch (loginError) {
+                console.log('❌ Login with stored password failed - falling back to limited mode');
+                
+                // Return limited mode data
+                const limitedAuthData = {
+                  success: true,
+                  user: {
+                    email: googleUser.email,
+                    name: googleUser.name,
+                    username: userData.username,
+                    picture: googleUser.picture,
+                    verified_email: googleUser.verified_email,
+                    google_id: googleUser.id,
+                    provider: 'google'
+                  },
+                  message: 'Google user authenticated in limited mode',
+                  google_only_mode: true,
+                  timestamp: Date.now()
+                };
+
+                console.log('⚠️ Returning limited mode authentication data to mobile app');
+                res.json(limitedAuthData);
+              }
+            } else {
+              throw registrationError;
+            }
+          }
+
+        } catch (error) {
+          console.error('❌ Error processing OAuth data:', error);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to process authentication',
+            message: error.message
+          });
+        }
+
+      } else if (authData.user) {
+        // Already processed user data - return it
+        console.log('✅ Found processed user data for mobile app');
+        
+        // Clear it after getting (single use)
+        global.latestAuthData = null;
+        
+        console.log('🎉 Returning processed authentication data to mobile app');
+        res.json(authData);
+
+      } else {
+        console.log('❌ Invalid authentication session data');
+        res.json({
+          success: false,
+          authCode: null,
+          state: null,
+          message: 'Invalid authentication session data'
+        });
+      }
       
     } else {
       console.log('❌ No authentication session found');
