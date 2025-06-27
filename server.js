@@ -645,6 +645,7 @@ app.get('/auth/check-session', async (req, res) => {
           };
 
           console.log('🔄 Attempting to register Google user with ticketing API...');
+          console.log('🔍 DEBUG: Registration data being sent:', JSON.stringify(userData, null, 2));
 
           try {
             // Try to register the user
@@ -660,6 +661,7 @@ app.get('/auth/check-session', async (req, res) => {
             );
 
             console.log('✅ Google user registered successfully!');
+            console.log('🔍 DEBUG: Registration response:', JSON.stringify(registrationResponse.data, null, 2));
 
             // Return the processed authentication data
             const processedAuthData = {
@@ -695,6 +697,10 @@ app.get('/auth/check-session', async (req, res) => {
                              try {
                  console.log('🔍 DEBUG: Attempting login with email:', userData.email);
                  console.log('🔍 DEBUG: Generated password pattern:', userData.password);
+                 console.log('🔍 DEBUG: Login data being sent:', JSON.stringify({
+                   email: userData.email,
+                   password: userData.password
+                 }, null, 2));
                  
                  const loginResponse = await axios.post(
                    `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
