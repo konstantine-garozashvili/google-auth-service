@@ -692,22 +692,25 @@ app.get('/auth/check-session', async (req, res) => {
               // User already exists, try to login
               console.log('👤 User already exists - attempting login with stored password...');
 
-              try {
-                const loginResponse = await axios.post(
-                  `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
-                  {
-                    email: userData.email,
-                    password: userData.password
-                  },
-                  {
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Accept': 'application/json'
-                    }
-                  }
-                );
+                             try {
+                 console.log('🔍 DEBUG: Attempting login with email:', userData.email);
+                 console.log('🔍 DEBUG: Generated password pattern:', userData.password);
+                 
+                 const loginResponse = await axios.post(
+                   `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
+                   {
+                     email: userData.email,
+                     password: userData.password
+                   },
+                   {
+                     headers: {
+                       'Content-Type': 'application/json',
+                       'Accept': 'application/json'
+                     }
+                   }
+                 );
 
-                console.log('✅ Existing Google user authenticated successfully!');
+                 console.log('✅ Existing Google user authenticated successfully!');
 
                 // Return the processed authentication data
                 const processedAuthData = {
@@ -735,29 +738,101 @@ app.get('/auth/check-session', async (req, res) => {
                 console.log('🎉 Returning existing user authentication data to mobile app');
                 res.json(processedAuthData);
 
-              } catch (loginError) {
-                console.log('❌ Login with stored password failed - falling back to limited mode');
-                
-                // Return limited mode data
-                const limitedAuthData = {
-                  success: true,
-                  user: {
-                    email: googleUser.email,
-                    name: googleUser.name,
-                    username: userData.username,
-                    picture: googleUser.picture,
-                    verified_email: googleUser.verified_email,
-                    google_id: googleUser.id,
-                    provider: 'google'
-                  },
-                  message: 'Google user authenticated in limited mode',
-                  google_only_mode: true,
-                  timestamp: Date.now()
-                };
+                                            } catch (loginError) {
+                 console.log('❌ Login with stored password failed - trying alternative password patterns...');
+                 console.log('🔍 DEBUG: Login error status:', loginError.response?.status);
+                 console.log('🔍 DEBUG: Login error message:', loginError.response?.data?.message || loginError.message);
+                 
+                 // Try alternative password patterns for existing users
+                 const alternativePasswords = [
+                   `GoogleAuth_${googleUser.id}`, // Without email prefix
+                   `GoogleAuth_${googleUser.email.split('@')[0]}_${googleUser.id}`, // Reversed order
+                   `Google_${googleUser.id}_${googleUser.email.split('@')[0]}`, // Different prefix
+                   `GoogleAuth_${googleUser.id}_${googleUser.email.split('@')[0].toLowerCase()}`, // Lowercase
+                   `GoogleAuth_${googleUser.id}_${googleUser.email.split('@')[0].replace(/\./g, '')}` // Remove dots
+                 ];
+                 
+                 let alternativeLoginSuccess = false;
+                 
+                 for (let i = 0; i < alternativePasswords.length; i++) {
+                   const altPassword = alternativePasswords[i];
+                   console.log(`🔄 Trying alternative password pattern ${i + 1}/${alternativePasswords.length}: ${altPassword}`);
+                   
+                   try {
+                     const altLoginResponse = await axios.post(
+                       `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
+                       {
+                         email: userData.email,
+                         password: altPassword
+                       },
+                       {
+                         headers: {
+                           'Content-Type': 'application/json',
+                           'Accept': 'application/json'
+                         }
+                       }
+                     );
+                     
+                     console.log(`✅ Alternative password pattern ${i + 1} worked! User authenticated successfully.`);
+                     
+                     // Return the processed authentication data
+                     const processedAuthData = {
+                       success: true,
+                       user: {
+                         id: altLoginResponse.data.user?.id,
+                         email: googleUser.email,
+                         name: googleUser.name,
+                         username: userData.username,
+                         picture: googleUser.picture,
+                         verified_email: googleUser.verified_email,
+                         google_id: googleUser.id,
+                         provider: 'google',
+                         admin: altLoginResponse.data.user?.admin,
+                         admin_level: altLoginResponse.data.user?.admin_level,
+                         company: altLoginResponse.data.user?.company
+                       },
+                       access_token: altLoginResponse.data.access_token,
+                       refresh_token: altLoginResponse.data.refresh_token,
+                       message: `Existing Google user authenticated with alternative password pattern ${i + 1}`,
+                       google_ticketing_mode: true,
+                       timestamp: Date.now()
+                     };
 
-                console.log('⚠️ Returning limited mode authentication data to mobile app');
-                res.json(limitedAuthData);
-              }
+                     console.log('🎉 Returning alternative authentication data to mobile app');
+                     res.json(processedAuthData);
+                     alternativeLoginSuccess = true;
+                     break;
+                     
+                   } catch (altError) {
+                     console.log(`❌ Alternative password pattern ${i + 1} failed:`, altError.response?.data?.message || altError.message);
+                     continue;
+                   }
+                 }
+                 
+                 if (!alternativeLoginSuccess) {
+                   console.log('❌ All password patterns failed - falling back to limited mode');
+                   
+                   // Return limited mode data
+                   const limitedAuthData = {
+                     success: true,
+                     user: {
+                       email: googleUser.email,
+                       name: googleUser.name,
+                       username: userData.username,
+                       picture: googleUser.picture,
+                       verified_email: googleUser.verified_email,
+                       google_id: googleUser.id,
+                       provider: 'google'
+                     },
+                     message: 'Google user authenticated in limited mode - unable to link with existing account',
+                     google_only_mode: true,
+                     timestamp: Date.now()
+                   };
+
+                   console.log('⚠️ Returning limited mode authentication data to mobile app');
+                   res.json(limitedAuthData);
+                 }
+               }
             } else {
               throw registrationError;
             }
