@@ -504,13 +504,24 @@ app.use((err, req, res, next) => {
 // Start Server
 // ============================================
 app.listen(PORT, '0.0.0.0', () => {
+  const redirectUri = process.env.NODE_ENV === 'development' 
+    ? process.env.DEVELOPMENT_REDIRECT_URI 
+    : process.env.PRODUCTION_REDIRECT_URI;
+    
   console.log(`🚀 Google Auth Service running on port ${PORT}`);
   console.log(`📋 Health check: http://localhost:${PORT}/health (local) | http://10.10.150.255:${PORT}/health (mobile)`);
   console.log(`🔗 Auth URL endpoint: http://10.10.150.255:${PORT}/auth/google/url (mobile)`);
   console.log(`✅ Complete auth endpoint: http://10.10.150.255:${PORT}/auth/google/complete (mobile)`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📱 Mobile app connects via: http://10.10.150.255:${PORT}`);
-  console.log(`🌐 Google OAuth redirects to: http://localhost:${PORT}/auth/google/success`);
+  console.log(`🌐 Google OAuth redirects to: ${redirectUri || 'NOT_SET'}`);
+  
+  // Debug: Show environment variables (without sensitive data)
+  console.log(`🔍 DEBUG: NODE_ENV = ${process.env.NODE_ENV}`);
+  console.log(`🔍 DEBUG: PRODUCTION_REDIRECT_URI = ${process.env.PRODUCTION_REDIRECT_URI ? 'SET' : 'NOT_SET'}`);
+  console.log(`🔍 DEBUG: DEVELOPMENT_REDIRECT_URI = ${process.env.DEVELOPMENT_REDIRECT_URI ? 'SET' : 'NOT_SET'}`);
+  console.log(`🔍 DEBUG: GOOGLE_CLIENT_ID = ${process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT_SET'}`);
+  console.log(`🔍 DEBUG: GOOGLE_CLIENT_SECRET = ${process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT_SET'}`);
 });
 
 module.exports = app; 
