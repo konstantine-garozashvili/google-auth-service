@@ -174,11 +174,14 @@ app.post('/auth/google/complete', async (req, res) => {
           id: registrationResponse.data.user?.id,
           email: googleUser.email,
           name: googleUser.name,
-          username: userData.username
+          username: userData.username,
+          picture: googleUser.picture,
+          verified_email: googleUser.verified_email
         },
         access_token: registrationResponse.data.access_token,
         refresh_token: registrationResponse.data.refresh_token,
-        message: 'User registered and logged in successfully via Google'
+        message: 'User registered and logged in successfully via Google',
+        timestamp: Date.now()
       });
       
     } catch (registrationError) {
@@ -419,7 +422,9 @@ app.get('/auth/check-session', async (req, res) => {
             id: registrationResponse.data.user?.id,
             email: googleUser.email,
             name: googleUser.name,
-            username: userData.username
+            username: userData.username,
+            picture: googleUser.picture,
+            verified_email: googleUser.verified_email
           },
           access_token: registrationResponse.data.access_token,
           refresh_token: registrationResponse.data.refresh_token,
@@ -442,7 +447,9 @@ app.get('/auth/check-session', async (req, res) => {
               email: googleUser.email,
               name: googleUser.name,
               username: userData.username,
-              google_id: googleUser.id
+              google_id: googleUser.id,
+              picture: googleUser.picture,
+              verified_email: googleUser.verified_email
             },
             message: 'Existing user authenticated via Google',
             timestamp: authData.timestamp
