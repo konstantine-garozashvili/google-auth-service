@@ -153,55 +153,243 @@ app.post('/auth/google/complete', async (req, res) => {
     const googleUser = userResponse.data;
     console.log('✅ Google user info retrieved:', googleUser.email);
     
-    // Step 4: Create full access for Google users without ticketing API dependency
-    console.log('🔄 Creating full API access for Google user (bypass mode)...');
+    // Step 4: Hybrid Google + Ticketing API Integration
+    console.log('🔄 Processing Google user with ticketing API integration...');
     
-    // Generate a secure access token for this Google user
-    const googleAccessToken = 'google_' + crypto.randomBytes(32).toString('hex');
-    const googleRefreshToken = 'google_refresh_' + crypto.randomBytes(32).toString('hex');
-    
-    // Create enhanced user data with full API access
-    const enhancedUserData = {
-      id: `google_${googleUser.id}`, // Use Google ID as unique identifier
-      email: googleUser.email,
+    // Generate a consistent password for this Google user based on their Google ID
+    const userPassword = 'GoogleAuth_' + googleUser.id + '_' + googleUser.email.split('@')[0];
+    const userData = {
       name: googleUser.name,
-      username: googleUser.email.split('@')[0],
+      email: googleUser.email,
+      username: googleUser.email.split('@')[0], // Use email prefix as username
+      password: userPassword,
       google_id: googleUser.id,
-      provider: 'google',
-      picture: googleUser.picture,
-      verified_email: googleUser.verified_email,
-      has_api_access: true,
-      google_only_mode: false,
-      admin: false, // Default to false, can be changed manually if needed
-      company: 'Google Users', // Default company for Google users
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      provider: 'google'
     };
     
-    console.log('✅ Google user granted full API access without ticketing API registration');
-    console.log('👤 Google user data:', enhancedUserData.email);
+    console.log('🔵 Attempting ticketing API integration for Google user:', googleUser.email);
     
-    // Store this authentication session globally for the mobile app to retrieve
-    global.latestAuthData = {
-      success: true,
-      user: enhancedUserData,
-      access_token: googleAccessToken,
-      refresh_token: googleRefreshToken,
-      message: 'Google authentication successful with full API access',
-      google_bypass_mode: true,
-      timestamp: Date.now()
-    };
-    
-    // Return success response with full API access
-    res.json({
-      success: true,
-      user: enhancedUserData,
-      access_token: googleAccessToken,
-      refresh_token: googleRefreshToken,
-      message: 'Google authentication successful with full API access (bypass mode)',
-      google_bypass_mode: true,
-      timestamp: Date.now()
-    });
+    try {
+      // Try to register the user with ticketing API
+      console.log('🔄 Registering new Google user with ticketing API...');
+      const registrationResponse = await axios.post(
+        `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`,
+        userData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      );
+      
+      console.log('✅ New Google user registered successfully with ticketing API');
+      
+      // Store this authentication session globally for the mobile app to retrieve
+      global.latestAuthData = {
+        success: true,
+        user: {
+          id: registrationResponse.data.user?.id,
+          email: googleUser.email,
+          name: googleUser.name,
+          username: userData.username,
+          picture: googleUser.picture,
+          verified_email: googleUser.verified_email,
+          google_id: googleUser.id,
+          provider: 'google',
+          admin: registrationResponse.data.user?.admin,
+          admin_level: registrationResponse.data.user?.admin_level,
+          company: registrationResponse.data.user?.company,
+          has_api_access: true,
+          google_only_mode: false,
+          stored_password: userPassword // Store password for future use
+        },
+        access_token: registrationResponse.data.access_token,
+        refresh_token: registrationResponse.data.refresh_token,
+        message: 'New Google user registered with full ticketing API access',
+        google_ticketing_mode: true,
+        timestamp: Date.now()
+      };
+      
+      // Return success response with full ticketing API access
+      res.json({
+        success: true,
+        user: {
+          id: registrationResponse.data.user?.id,
+          email: googleUser.email,
+          name: googleUser.name,
+          username: userData.username,
+          picture: googleUser.picture,
+          verified_email: googleUser.verified_email,
+          google_id: googleUser.id,
+          provider: 'google',
+          admin: registrationResponse.data.user?.admin,
+          admin_level: registrationResponse.data.user?.admin_level,
+          company: registrationResponse.data.user?.company
+        },
+        access_token: registrationResponse.data.access_token,
+        refresh_token: registrationResponse.data.refresh_token,
+        message: 'New Google user registered with full ticketing API access',
+        google_ticketing_mode: true,
+        timestamp: Date.now()
+      });
+      
+    } catch (registrationError) {
+      // User might already exist - try to login with the stored password
+      if (registrationError.response?.status === 409 || 
+          registrationError.response?.data?.error?.includes('existe déjà') ||
+          registrationError.response?.data?.message?.includes('already exists')) {
+        
+        console.log('🔄 Google user already exists - attempting login with stored password...');
+        
+        try {
+          // Try to login with the consistent password
+          const loginResponse = await axios.post(
+            `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
+            {
+              identity: googleUser.email,
+              password: userPassword
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              }
+            }
+          );
+          
+          console.log('✅ Existing Google user authenticated successfully with stored password!');
+          
+          // Store this authentication session globally for the mobile app to retrieve
+          global.latestAuthData = {
+            success: true,
+            user: {
+              id: loginResponse.data.user?.id,
+              email: googleUser.email,
+              name: googleUser.name,
+              username: userData.username,
+              picture: googleUser.picture,
+              verified_email: googleUser.verified_email,
+              google_id: googleUser.id,
+              provider: 'google',
+              admin: loginResponse.data.user?.admin,
+              admin_level: loginResponse.data.user?.admin_level,
+              company: loginResponse.data.user?.company,
+              has_api_access: true,
+              google_only_mode: false,
+              stored_password: userPassword // Store password for future use
+            },
+            access_token: loginResponse.data.access_token,
+            refresh_token: loginResponse.data.refresh_token,
+            message: 'Existing Google user authenticated with stored credentials',
+            google_ticketing_mode: true,
+            timestamp: Date.now()
+          };
+          
+          // Return success response with full ticketing API access
+          res.json({
+            success: true,
+            user: {
+              id: loginResponse.data.user?.id,
+              email: googleUser.email,
+              name: googleUser.name,
+              username: userData.username,
+              picture: googleUser.picture,
+              verified_email: googleUser.verified_email,
+              google_id: googleUser.id,
+              provider: 'google',
+              admin: loginResponse.data.user?.admin,
+              admin_level: loginResponse.data.user?.admin_level,
+              company: loginResponse.data.user?.company
+            },
+            access_token: loginResponse.data.access_token,
+            refresh_token: loginResponse.data.refresh_token,
+            message: 'Existing Google user authenticated with stored credentials',
+            google_ticketing_mode: true,
+            timestamp: Date.now()
+          });
+          
+        } catch (loginError) {
+          console.log('❌ Login with stored password failed - password might have changed');
+          console.log('🔄 Attempting to register with unique credentials...');
+          
+          // Try to register with a unique username to avoid conflicts
+          const uniqueUsername = userData.username + '_' + Date.now().toString().substring(-4);
+          const uniquePassword = 'GoogleAuth_' + crypto.randomBytes(12).toString('hex');
+          
+          try {
+            const retryRegistrationResponse = await axios.post(
+              `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`,
+              {
+                ...userData,
+                username: uniqueUsername,
+                password: uniquePassword
+              },
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                }
+              }
+            );
+            
+            console.log('✅ Google user registered with unique credentials!');
+            
+            // Store this authentication session globally for the mobile app to retrieve
+            global.latestAuthData = {
+              success: true,
+              user: {
+                id: retryRegistrationResponse.data.user?.id,
+                email: googleUser.email,
+                name: googleUser.name,
+                username: uniqueUsername,
+                picture: googleUser.picture,
+                verified_email: googleUser.verified_email,
+                google_id: googleUser.id,
+                provider: 'google',
+                admin: retryRegistrationResponse.data.user?.admin,
+                admin_level: retryRegistrationResponse.data.user?.admin_level,
+                company: retryRegistrationResponse.data.user?.company,
+                has_api_access: true,
+                google_only_mode: false,
+                stored_password: uniquePassword // Store new password for future use
+              },
+              access_token: retryRegistrationResponse.data.access_token,
+              refresh_token: retryRegistrationResponse.data.refresh_token,
+              message: 'Google user registered with unique credentials',
+              google_ticketing_mode: true,
+              timestamp: Date.now()
+            };
+            
+            res.json({
+              success: true,
+              user: {
+                id: retryRegistrationResponse.data.user?.id,
+                email: googleUser.email,
+                name: googleUser.name,
+                username: uniqueUsername,
+                picture: googleUser.picture,
+                verified_email: googleUser.verified_email,
+                google_id: googleUser.id,
+                provider: 'google'
+              },
+              access_token: retryRegistrationResponse.data.access_token,
+              refresh_token: retryRegistrationResponse.data.refresh_token,
+              message: 'Google user registered with unique credentials',
+              google_ticketing_mode: true,
+              timestamp: Date.now()
+            });
+            
+          } catch (retryError) {
+            console.error('❌ All ticketing API attempts failed for Google user');
+            throw new Error('Failed to integrate Google user with ticketing system');
+          }
+        }
+      } else {
+        console.error('❌ Ticketing API registration error:', registrationError.response?.data || registrationError.message);
+        throw registrationError;
+      }
+    }
     
   } catch (error) {
     console.error('❌ Google auth completion error:', error);
