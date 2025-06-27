@@ -252,73 +252,156 @@ app.post('/auth/google/complete', async (req, res) => {
 // Development Success Page (for Expo Go)
 // ============================================
 app.get('/auth/google/success', (req, res) => {
-  const { code, state } = req.query;
+  const { code, state, error, error_description } = req.query;
+  
+  console.log('🔵 Google OAuth redirect received');
+  console.log('🔵 Code:', code ? 'present' : 'missing');
+  console.log('🔵 State:', state ? 'present' : 'missing');
+  console.log('🔵 Error:', error || 'none');
+  console.log('🔵 Error description:', error_description || 'none');
+  
+  // Handle OAuth errors first
+  if (error) {
+    console.error('❌ Google OAuth error:', error, error_description);
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Erreur d'Authentification</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; text-align: center; background: #f5f5f5; }
+          .container { background: white; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .error { color: #f44336; font-size: 24px; margin-bottom: 20px; }
+          .button { background: #f44336; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 10px; }
+          .instruction { margin: 20px 0; line-height: 1.5; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="error">❌ Erreur d'Authentification Google</div>
+          <p class="instruction">
+            ${error === 'access_denied' ? 
+              'Vous avez annulé l\'authentification. Veuillez réessayer si vous souhaitez vous connecter.' :
+              `Une erreur s'est produite: ${error_description || error}`
+            }
+          </p>
+          <button class="button" onclick="window.close()">Fermer cette fenêtre</button>
+          <button class="button" onclick="window.location.reload()">Réessayer</button>
+        </div>
+      </body>
+      </html>
+    `);
+    return;
+  }
   
   if (code && state) {
+    // Clear any existing auth data to prevent conflicts with multiple accounts
+    if (global.latestAuthData) {
+      console.log('🧹 Clearing previous auth data to prevent account conflicts');
+      global.latestAuthData = null;
+    }
+    
     // Store the auth code temporarily (in production, use Redis)
     const sessionKey = `auth_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     stateStore.set(sessionKey, { code, state, timestamp: Date.now() });
     
-    // Also store globally for mobile app pickup (simplified for development)
+    // Store globally for mobile app pickup (simplified for development)
     global.latestAuthData = {
       code: code,
       state: state,
       timestamp: new Date().toISOString()
     };
-    console.log('💾 Auth data stored for mobile app pickup');
+    console.log('💾 New auth data stored for mobile app pickup');
     
     // Show success page with instructions
     res.send(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Google Authentication Success</title>
+        <title>Authentification Google Réussie</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body { font-family: Arial, sans-serif; margin: 40px; text-align: center; background: #f5f5f5; }
           .container { background: white; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
           .success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
-          .code { background: #f0f0f0; padding: 10px; border-radius: 4px; font-family: monospace; margin: 20px 0; word-break: break-all; }
-          .button { background: #4CAF50; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+          .code { background: #f0f0f0; padding: 10px; border-radius: 4px; font-family: monospace; margin: 20px 0; word-break: break-all; font-size: 12px; }
+          .button { background: #4CAF50; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 5px; }
           .instruction { margin: 20px 0; line-height: 1.5; color: #666; }
+          .status { padding: 10px; background: #e8f5e8; border-radius: 4px; margin: 10px 0; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="success">✅ Google Authentication Successful!</div>
-          <p class="instruction">Your authentication was successful. Return to your mobile app and tap the button below to complete the login.</p>
+          <div class="success">✅ Authentification Google Réussie!</div>
+          <div class="status">Votre authentification a été traitée avec succès.</div>
           
-          <div class="code">Session: ${sessionKey}</div>
+          <p class="instruction">
+            <strong>Retournez maintenant dans votre application mobile.</strong><br>
+            L'application détectera automatiquement votre authentification dans quelques secondes.
+          </p>
           
-          <button class="button" onclick="copySession()">Copy Session Code</button>
+          <div class="code">ID de Session: ${sessionKey}</div>
           
-          <p class="instruction"><strong>Instructions:</strong><br>
-          1. Copy the session code above<br>
-          2. Return to your mobile app<br>
-          3. The app will automatically detect your authentication</p>
+          <button class="button" onclick="copySession()">Copier l'ID de Session</button>
+          <button class="button" onclick="window.close()" style="background: #666;">Fermer</button>
+          
+          <p class="instruction" style="font-size: 14px;">
+            <strong>Instructions si nécessaire:</strong><br>
+            1. Si l'app ne détecte pas automatiquement l'authentification<br>
+            2. Copiez l'ID de session ci-dessus<br>
+            3. Utilisez la fonction de vérification manuelle dans l'app
+          </p>
         </div>
         
         <script>
           function copySession() {
-            navigator.clipboard.writeText('${sessionKey}');
-            alert('Session code copied! Return to your mobile app.');
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText('${sessionKey}').then(() => {
+                alert('ID de session copié! Retournez dans votre application mobile.');
+              });
+            } else {
+              // Fallback for older browsers
+              const textArea = document.createElement('textarea');
+              textArea.value = '${sessionKey}';
+              document.body.appendChild(textArea);
+              textArea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textArea);
+              alert('ID de session copié! Retournez dans votre application mobile.');
+            }
           }
           
-          // Auto-redirect after 3 seconds
+          // Auto-close after 10 seconds
           setTimeout(function() {
             window.close();
-          }, 5000);
+          }, 10000);
         </script>
       </body>
       </html>
     `);
   } else {
+    console.error('❌ No authorization code or state received');
     res.send(`
       <!DOCTYPE html>
       <html>
-      <head><title>Authentication Error</title></head>
-      <body style="font-family: Arial, sans-serif; text-align: center; margin: 40px;">
-        <h2 style="color: #f44336;">❌ Authentication Failed</h2>
-        <p>No authorization code received. Please try again.</p>
+      <head>
+        <title>Erreur d'Authentification</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; text-align: center; background: #f5f5f5; }
+          .container { background: white; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .error { color: #f44336; font-size: 24px; margin-bottom: 20px; }
+          .button { background: #f44336; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+          .instruction { margin: 20px 0; line-height: 1.5; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="error">❌ Erreur d'Authentification</div>
+          <p class="instruction">
+            Aucun code d'autorisation reçu de Google. Veuillez réessayer l'authentification.
+          </p>
+          <button class="button" onclick="window.close()">Fermer cette fenêtre</button>
+        </div>
       </body>
       </html>
     `);
@@ -480,6 +563,40 @@ app.get('/auth/check-session', async (req, res) => {
 });
 
 // ============================================
+// Clear Session Endpoint (for logout)
+// ============================================
+app.post('/auth/clear-session', (req, res) => {
+  try {
+    console.log('🧹 Clearing authentication session data...');
+    
+    // Clear global auth data
+    if (global.latestAuthData) {
+      global.latestAuthData = null;
+      console.log('✅ Global auth data cleared');
+    }
+    
+    // Clear all stored states (optional cleanup)
+    const statesCleared = stateStore.size;
+    stateStore.clear();
+    console.log(`✅ Cleared ${statesCleared} stored states`);
+    
+    res.json({
+      success: true,
+      message: 'Authentication session cleared successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error clearing session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clear session',
+      message: error.message
+    });
+  }
+});
+
+// ============================================
 // Health Check Endpoint
 // ============================================
 app.get('/health', (req, res) => {
@@ -490,7 +607,8 @@ app.get('/health', (req, res) => {
     endpoints: {
       auth_url: '/auth/google/url',
       complete_auth: '/auth/google/complete',
-      check_session: '/auth/check-session'
+      check_session: '/auth/check-session',
+      clear_session: '/auth/clear-session'
     }
   });
 });
