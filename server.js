@@ -646,12 +646,12 @@ app.get('/auth/check-session', async (req, res) => {
 
           console.log('🔄 Attempting to register Google user with ticketing API...');
           console.log('🔍 DEBUG: Registration data being sent:', JSON.stringify(userData, null, 2));
-          console.log('🔍 DEBUG: Registration URL:', `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`);
+          console.log('🔍 DEBUG: Registration URL:', `${process.env.TICKETING_API_BASE_URL}/auth/register`);
 
           try {
             // Try to register the user
             const registrationResponse = await axios.post(
-              `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`,
+              `${process.env.TICKETING_API_BASE_URL}/auth/register`,
               userData,
               {
                 headers: {
@@ -705,12 +705,12 @@ app.get('/auth/check-session', async (req, res) => {
                    email: userData.email,
                    password: userData.password
                  }, null, 2));
-                 console.log('🔍 DEBUG: Login URL:', `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`);
+                 console.log('🔍 DEBUG: Login URL:', `${process.env.TICKETING_API_BASE_URL}/auth/login`);
                  
                  const loginResponse = await axios.post(
-                   `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
+                   `${process.env.TICKETING_API_BASE_URL}/auth/login`,
                    {
-                     email: userData.email,
+                     identity: userData.email,
                      password: userData.password
                    },
                    {
@@ -771,9 +771,9 @@ app.get('/auth/check-session', async (req, res) => {
                    
                    try {
                      const altLoginResponse = await axios.post(
-                       `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
+                       `${process.env.TICKETING_API_BASE_URL}/auth/login`,
                        {
-                         email: userData.email,
+                         identity: userData.email,
                          password: altPassword
                        },
                        {
