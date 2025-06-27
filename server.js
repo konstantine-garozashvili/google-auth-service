@@ -646,6 +646,7 @@ app.get('/auth/check-session', async (req, res) => {
 
           console.log('🔄 Attempting to register Google user with ticketing API...');
           console.log('🔍 DEBUG: Registration data being sent:', JSON.stringify(userData, null, 2));
+          console.log('🔍 DEBUG: Registration URL:', `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`);
 
           try {
             // Try to register the user
@@ -690,6 +691,9 @@ app.get('/auth/check-session', async (req, res) => {
             res.json(processedAuthData);
 
           } catch (registrationError) {
+            console.log('🔍 DEBUG: Registration error status:', registrationError.response?.status);
+            console.log('🔍 DEBUG: Registration error message:', registrationError.response?.data?.message || registrationError.message);
+            
             if (registrationError.response?.status === 409) {
               // User already exists, try to login
               console.log('👤 User already exists - attempting login with stored password...');
@@ -701,6 +705,7 @@ app.get('/auth/check-session', async (req, res) => {
                    email: userData.email,
                    password: userData.password
                  }, null, 2));
+                 console.log('🔍 DEBUG: Login URL:', `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`);
                  
                  const loginResponse = await axios.post(
                    `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_LOGIN_ENDPOINT}`,
