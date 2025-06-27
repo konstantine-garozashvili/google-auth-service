@@ -348,27 +348,126 @@ app.get('/auth/check/:sessionKey', (req, res) => {
 // ============================================
 // Session Check Endpoint (for mobile app polling)
 // ============================================
-app.get('/auth/check-session', (req, res) => {
+app.get('/auth/check-session', async (req, res) => {
   console.log('📱 Mobile app checking for auth session...');
   
-  // Check if we have any stored session data
-  if (global.latestAuthData) {
-    console.log('✅ Found auth session data for mobile app');
-    const authData = global.latestAuthData;
+  try {
+    // Check if we have any stored session data
+    if (global.latestAuthData) {
+      console.log('✅ Found auth session data for mobile app');
+      const authData = global.latestAuthData;
+      
+      // Clear it after getting (single use)
+      global.latestAuthData = null;
+      
+      console.log('🔄 Processing Google authentication for mobile app...');
+      
+      // Step 1: Exchange authorization code for Google access token
+      const redirectUri = process.env.NODE_ENV === 'development' 
+        ? process.env.DEVELOPMENT_REDIRECT_URI 
+        : process.env.PRODUCTION_REDIRECT_URI;
+      
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        code: authData.code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      });
+      
+      const { access_token } = tokenResponse.data;
+      console.log('✅ Google access token received for mobile app');
+      
+      // Step 2: Get user info from Google
+      const userResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${access_token}`
+        }
+      });
+      
+      const googleUser = userResponse.data;
+      console.log('✅ Google user info retrieved for mobile app:', googleUser.email);
+      
+      // Step 3: Try to register/login user with ticketing API
+      const userData = {
+        name: googleUser.name,
+        email: googleUser.email,
+        username: googleUser.email.split('@')[0],
+        password: 'GoogleAuth_' + crypto.randomBytes(8).toString('hex'),
+        google_id: googleUser.id,
+        provider: 'google'
+      };
+      
+      try {
+        // Try to register user
+        const registrationResponse = await axios.post(
+          `${process.env.TICKETING_API_BASE_URL}${process.env.TICKETING_REGISTER_ENDPOINT}`,
+          userData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          }
+        );
+        
+        console.log('✅ User registered successfully via mobile check-session');
+        
+        res.json({
+          success: true,
+          user: {
+            id: registrationResponse.data.user?.id,
+            email: googleUser.email,
+            name: googleUser.name,
+            username: userData.username
+          },
+          access_token: registrationResponse.data.access_token,
+          refresh_token: registrationResponse.data.refresh_token,
+          message: 'User registered and logged in successfully via Google',
+          timestamp: authData.timestamp
+        });
+        
+      } catch (registrationError) {
+        // User might already exist
+        if (registrationError.response?.status === 409 || 
+            registrationError.response?.data?.error?.includes('existe déjà') ||
+            registrationError.response?.data?.message?.includes('already exists')) {
+          
+          console.log('🔄 User already exists - returning user info for mobile app');
+          
+          res.json({
+            success: true,
+            is_existing_user: true,
+            user: {
+              email: googleUser.email,
+              name: googleUser.name,
+              username: userData.username,
+              google_id: googleUser.id
+            },
+            message: 'Existing user authenticated via Google',
+            timestamp: authData.timestamp
+          });
+        } else {
+          throw registrationError;
+        }
+      }
+      
+    } else {
+      console.log('❌ No auth session data available');
+      res.json({
+        success: false,
+        authCode: null,
+        state: null,
+        message: 'No authentication session found'
+      });
+    }
     
-    // Clear it after sending (single use)
-    global.latestAuthData = null;
-    
-    res.json({
-      authCode: authData.code,
-      state: authData.state,
-      timestamp: authData.timestamp
-    });
-  } else {
-    console.log('❌ No auth session data available');
-    res.json({
-      authCode: null,
-      state: null
+  } catch (error) {
+    console.error('❌ Error in check-session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process authentication',
+      message: error.message
     });
   }
 });
