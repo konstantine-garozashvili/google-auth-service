@@ -288,16 +288,16 @@ app.post('/auth/google/complete', async (req, res) => {
           
           // Return success response with full ticketing API access
           res.json({
-            success: true,
-            user: {
+          success: true,
+          user: {
               id: loginResponse.data.user?.id,
-              email: googleUser.email,
-              name: googleUser.name,
-              username: userData.username,
+            email: googleUser.email,
+            name: googleUser.name,
+            username: userData.username,
               picture: googleUser.picture,
               verified_email: googleUser.verified_email,
               google_id: googleUser.id,
-              provider: 'google',
+            provider: 'google',
               admin: loginResponse.data.user?.admin,
               admin_level: loginResponse.data.user?.admin_level,
               company: loginResponse.data.user?.company
@@ -345,7 +345,7 @@ app.post('/auth/google/complete', async (req, res) => {
                 username: uniqueUsername,
                 picture: googleUser.picture,
                 verified_email: googleUser.verified_email,
-                google_id: googleUser.id,
+            google_id: googleUser.id,
                 provider: 'google',
                 admin: retryRegistrationResponse.data.user?.admin,
                 admin_level: retryRegistrationResponse.data.user?.admin_level,
@@ -369,7 +369,7 @@ app.post('/auth/google/complete', async (req, res) => {
                 name: googleUser.name,
                 username: uniqueUsername,
                 picture: googleUser.picture,
-                verified_email: googleUser.verified_email,
+            verified_email: googleUser.verified_email,
                 google_id: googleUser.id,
                 provider: 'google'
               },
@@ -485,19 +485,28 @@ app.get('/auth/google/success', (req, res) => {
         <title>Authentification Google Réussie</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; margin: 40px; text-align: center; background: #f5f5f5; }
-          .container { background: white; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-          .success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
-          .code { background: #f0f0f0; padding: 10px; border-radius: 4px; font-family: monospace; margin: 20px 0; word-break: break-all; font-size: 12px; }
-          .button { background: #4CAF50; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 5px; }
-          .instruction { margin: 20px 0; line-height: 1.5; color: #666; }
-          .status { padding: 10px; background: #e8f5e8; border-radius: 4px; margin: 10px 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 20px; text-align: center; background: #f5f5f5; }
+          .container { background: white; padding: 30px; border-radius: 12px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+          .success { color: #4CAF50; font-size: 28px; margin-bottom: 20px; font-weight: bold; }
+          .code { background: #f0f0f0; padding: 15px; border-radius: 8px; font-family: 'SF Mono', 'Monaco', 'Consolas', monospace; margin: 20px 0; word-break: break-all; font-size: 12px; }
+          .button { background: #4CAF50; color: white; padding: 15px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 8px; font-weight: 600; }
+          .button:hover { background: #45a049; }
+          .button.secondary { background: #666; }
+          .button.secondary:hover { background: #555; }
+          .instruction { margin: 20px 0; line-height: 1.6; color: #666; font-size: 16px; }
+          .status { padding: 15px; background: #e8f5e8; border-radius: 8px; margin: 15px 0; border-left: 4px solid #4CAF50; }
+          .ios-note { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0; color: #856404; }
+          .countdown { font-size: 14px; color: #888; margin-top: 15px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="success">✅ Authentification Google Réussie!</div>
           <div class="status">Votre authentification a été traitée avec succès.</div>
+          
+          <div class="ios-note">
+            📱 <strong>Utilisateurs iOS:</strong> Retournez maintenant dans votre application mobile. L'authentification sera détectée automatiquement dans quelques secondes.
+          </div>
           
           <p class="instruction">
             <strong>Retournez maintenant dans votre application mobile.</strong><br>
@@ -507,14 +516,16 @@ app.get('/auth/google/success', (req, res) => {
           <div class="code">ID de Session: ${sessionKey}</div>
           
           <button class="button" onclick="copySession()">Copier l'ID de Session</button>
-          <button class="button" onclick="window.close()" style="background: #666;">Fermer</button>
+          <button class="button secondary" onclick="window.close()">Fermer</button>
           
           <p class="instruction" style="font-size: 14px;">
-            <strong>Instructions si nécessaire:</strong><br>
-            1. Si l'app ne détecte pas automatiquement l'authentification<br>
-            2. Copiez l'ID de session ci-dessus<br>
-            3. Utilisez la fonction de vérification manuelle dans l'app
+            <strong>Instructions si l'app ne détecte pas automatiquement:</strong><br>
+            1. Attendez 10-15 secondes après avoir fermé cette page<br>
+            2. Si l'app reste sur l'écran de connexion, utilisez "Vérifier manuellement"<br>
+            3. Ou copiez l'ID de session ci-dessus pour un support technique
           </p>
+          
+          <div class="countdown" id="countdown">Cette fenêtre se fermera automatiquement dans <span id="timer">15</span> secondes.</div>
         </div>
         
         <script>
@@ -535,10 +546,24 @@ app.get('/auth/google/success', (req, res) => {
             }
           }
           
-          // Auto-close after 10 seconds
-          setTimeout(function() {
-            window.close();
-          }, 10000);
+          // Enhanced countdown for iOS
+          let timeLeft = 15;
+          const timerElement = document.getElementById('timer');
+          const countdownInterval = setInterval(function() {
+            timeLeft--;
+            if (timerElement) {
+              timerElement.textContent = timeLeft;
+            }
+            if (timeLeft <= 0) {
+              clearInterval(countdownInterval);
+              window.close();
+            }
+          }, 1000);
+          
+          // Try to close immediately on iOS if possible
+          if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
+            console.log('iOS device detected - will auto-close in 15 seconds');
+          }
         </script>
       </body>
       </html>
@@ -600,13 +625,17 @@ app.get('/auth/check/:sessionKey', (req, res) => {
 // ============================================
 app.get('/auth/check-session', async (req, res) => {
   console.log('📱 Mobile app checking for auth session...');
+  console.log('🔍 DEBUG: User-Agent:', req.headers['user-agent'] || 'Not provided');
+  console.log('🔍 DEBUG: Request from iOS?', (req.headers['user-agent'] || '').includes('iOS'));
   
   try {
-    // Check if we have any stored session data
-    if (global.latestAuthData) {
-      console.log('✅ Found auth session data for mobile app');
-      const authData = global.latestAuthData;
-      
+  // Check if we have any stored session data
+  if (global.latestAuthData) {
+    console.log('✅ Found auth session data for mobile app');
+    console.log('🔍 DEBUG: Auth data timestamp:', global.latestAuthData.timestamp);
+    console.log('🔍 DEBUG: Auth data age:', Date.now() - new Date(global.latestAuthData.timestamp).getTime(), 'ms');
+    const authData = global.latestAuthData;
+    
       // Check if this is raw OAuth data (code + state) or processed user data
       if (authData.code && authData.state && !authData.user) {
         console.log('🔄 Found raw OAuth data - processing with ticketing API...');
