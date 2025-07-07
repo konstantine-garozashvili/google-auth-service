@@ -487,12 +487,8 @@ app.get('/auth/google/success', (req, res) => {
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 20px; text-align: center; background: #f5f5f5; }
           .container { background: white; padding: 30px; border-radius: 12px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+          .logo { width: 200px; height: auto; margin-bottom: 20px; }
           .success { color: #4CAF50; font-size: 28px; margin-bottom: 20px; font-weight: bold; }
-          .code { background: #f0f0f0; padding: 15px; border-radius: 8px; font-family: 'SF Mono', 'Monaco', 'Consolas', monospace; margin: 20px 0; word-break: break-all; font-size: 12px; }
-          .button { background: #4CAF50; color: white; padding: 15px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 8px; font-weight: 600; }
-          .button:hover { background: #45a049; }
-          .button.secondary { background: #666; }
-          .button.secondary:hover { background: #555; }
           .instruction { margin: 20px 0; line-height: 1.6; color: #666; font-size: 16px; }
           .status { padding: 15px; background: #e8f5e8; border-radius: 8px; margin: 15px 0; border-left: 4px solid #4CAF50; }
           .ios-note { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0; color: #856404; }
@@ -501,6 +497,7 @@ app.get('/auth/google/success', (req, res) => {
       </head>
       <body>
         <div class="container">
+          <img src="/logo" alt="La Plateforme" class="logo" />
           <div class="success">✅ Authentification Google Réussie!</div>
           <div class="status">Votre authentification a été traitée avec succès.</div>
           
@@ -513,39 +510,17 @@ app.get('/auth/google/success', (req, res) => {
             L'application détectera automatiquement votre authentification dans quelques secondes.
           </p>
           
-          <div class="code">ID de Session: ${sessionKey}</div>
-          
-          <button class="button" onclick="copySession()">Copier l'ID de Session</button>
-          <button class="button secondary" onclick="window.close()">Fermer</button>
-          
           <p class="instruction" style="font-size: 14px;">
-            <strong>Instructions si l'app ne détecte pas automatiquement:</strong><br>
-            1. Attendez 10-15 secondes après avoir fermé cette page<br>
-            2. Si l'app reste sur l'écran de connexion, utilisez "Vérifier manuellement"<br>
-            3. Ou copiez l'ID de session ci-dessus pour un support technique
+            <strong>Instructions si l'application ne détecte pas automatiquement:</strong><br>
+            1. Attendez 10-15 secondes<br>
+            2. Si l'application reste sur l'écran de connexion, utilisez "Vérifier manuellement"<br>
+            3. Contactez le support technique si le problème persiste
           </p>
           
           <div class="countdown" id="countdown">Cette fenêtre se fermera automatiquement dans <span id="timer">15</span> secondes.</div>
         </div>
         
         <script>
-          function copySession() {
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText('${sessionKey}').then(() => {
-                alert('ID de session copié! Retournez dans votre application mobile.');
-              });
-            } else {
-              // Fallback for older browsers
-              const textArea = document.createElement('textarea');
-              textArea.value = '${sessionKey}';
-              document.body.appendChild(textArea);
-              textArea.select();
-              document.execCommand('copy');
-              document.body.removeChild(textArea);
-              alert('ID de session copié! Retournez dans votre application mobile.');
-            }
-          }
-          
           // Enhanced countdown for iOS
           let timeLeft = 15;
           const timerElement = document.getElementById('timer');
@@ -997,6 +972,15 @@ app.get('/auth/clear-session', (req, res) => {
 });
 
 // ============================================
+// Logo Endpoint
+// ============================================
+app.get('/logo', (req, res) => {
+  const path = require('path');
+  const logoPath = path.join(__dirname, 'Logo_Plateforme_Blc_fond-bleu1.png');
+  res.sendFile(logoPath);
+});
+
+// ============================================
 // Health Check Endpoint
 // ============================================
 app.get('/health', (req, res) => {
@@ -1049,4 +1033,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔍 DEBUG: GOOGLE_CLIENT_SECRET = ${process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT_SET'}`);
 });
 
-module.exports = app; 
+module.exports = app;
